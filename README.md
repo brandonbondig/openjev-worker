@@ -2,7 +2,7 @@
 
 This image runs OpenJev's helper (`shim.py`, unmodified) next to vLLM 0.29.0 on one GPU worker, so the worker answers `POST /v1/systemone` like the reference serving box in the model's SERVE.md. It is built for a RunPod load-balancer endpoint and published as `ghcr.io/brandonbondig/openjev-worker`.
 
-`start.sh` starts vLLM, waits until its `/health` returns 200, then starts the helper, and exits with status 1 as soon as either process stops, so the container restarts instead of half-serving. A stop signal is passed on to both processes, and the script waits for them to exit. vLLM runs with SERVE.md's flags:
+`start.sh` first starts a small readiness server, then starts vLLM, waits until its `/health` returns 200, starts the helper, and marks the worker ready once the helper answers `/v1/version`. It exits with status 1 as soon as any of the three processes stops, so the container restarts instead of half-serving. A stop signal is passed on to all three, and the script waits for them to exit. vLLM runs with SERVE.md's flags:
 
 ```
 vllm serve "$MODEL_NAME" --host 127.0.0.1 --port 8000 --served-model-name qwen --enable-prefix-caching --max-model-len 16384 --gpu-memory-utilization 0.90 --limit-mm-per-prompt '{"image":1}' --trust-remote-code --max-num-seqs 256 --max-logprobs 64 --gdn-prefill-backend triton
@@ -16,9 +16,9 @@ The published image is built with `build.sh`, a registry-side build that uses cr
 
 ## Running it
 
-Every variable can be overridden at deploy time. `MODEL_NAME` is the Hugging Face model vLLM serves (default `openjev/openjev-FP8`); keep `TOKENIZER` in step with it. `SHIM_TOKEN` is optional: when it is set, every helper route requires `Authorization: Bearer <token>`, and on RunPod it can stay unset because the load balancer authenticates the public ingress. `HF_TOKEN`, if present, is used by both processes for Hugging Face downloads. `PORT` is the helper's port (default 3000). The readout knobs `READOUT_T`, `READOUT_NOUL_T`, `READOUT_NOUL_BIAS`, `READOUT_TARGETED`, `READOUT_INSTR_STYLE` and `SHIM_STAGGER` carry SERVE.md's measured values, and the model card's numbers only hold with them unchanged.
+Every variable can be overridden at deploy time. `MODEL_NAME` is the Hugging Face model vLLM serves (default `openjev/openjev-FP8`); keep `TOKENIZER` in step with it. `SHIM_TOKEN` is optional: when it is set, every helper route requires `Authorization: Bearer <token>`, and on RunPod it can stay unset because the load balancer authenticates the public ingress. `HF_TOKEN`, if present, is used by both processes for Hugging Face downloads. `PORT` is the helper's port (default 3000) and `PORT_HEALTH` the readiness port (default 3001). The readout knobs `READOUT_T`, `READOUT_NOUL_T`, `READOUT_NOUL_BIAS`, `READOUT_TARGETED`, `READOUT_INSTR_STYLE` and `SHIM_STAGGER` carry SERVE.md's measured values, and the model card's numbers only hold with them unchanged.
 
-Port 3000 is the helper and the only exposed port. Port 8000 is vLLM, bound to loopback and reachable only from inside the container. The helper starts only after vLLM reports healthy, so port 3000 stays closed while the model loads, and `GET /v1/version` on port 3000 doubles as the readiness check. With `SHIM_TOKEN` set, that check needs the token as well.
+Port 3000 is the helper. Port 3001 is the readiness check: it listens from the first second and answers every GET and HEAD with 204 while the worker loads and 200 once vLLM is healthy and the helper is up. Port 8000 is vLLM, bound to loopback and reachable only from inside the container. On RunPod, configure the endpoint with `PORT=3000`, `PORT_HEALTH=3001` and `HEALTH_CHECK_PATH=/`, and expose both 3000 and 3001 as http.
 
 On a machine with an 80 GB or larger GPU:
 

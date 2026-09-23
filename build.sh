@@ -22,6 +22,7 @@ crane mutate "$IMAGE:$TAG" \
   --cmd "" \
   --workdir /vllm-workspace \
   --exposed-ports 3000 \
+  --exposed-ports 3001 \
   --label org.opencontainers.image.source=https://github.com/brandonbondig/openjev-worker \
   --env MODEL_NAME=openjev/openjev-FP8 \
   --env VLLM=http://127.0.0.1:8000/v1 \
@@ -33,6 +34,7 @@ crane mutate "$IMAGE:$TAG" \
   --env READOUT_INSTR_STYLE=pyrepr \
   --env SHIM_STAGGER=1 \
   --env PORT=3000 \
+  --env PORT_HEALTH=3001 \
   -t "$IMAGE:$TAG"
 
 crane tag "$IMAGE:$TAG" latest
