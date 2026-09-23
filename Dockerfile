@@ -1,6 +1,6 @@
 FROM vllm/vllm-openai:v0.29.0
 
-RUN pip install --no-cache-dir "openai==3.16.2" "httpx==0.28.1"
+RUN pip install --no-cache-dir --target /app/deps "openai==3.16.2" "httpx==0.28.1"
 
 COPY shim.py start.sh NOTICE /app/
 

@@ -24,7 +24,7 @@ until python3 -c 'import sys, urllib.request; sys.exit(urllib.request.urlopen("h
   wait "$!"
 done
 
-python3 /app/shim.py --host 0.0.0.0 --port "$PORT" &
+PYTHONPATH=/app/deps python3 /app/shim.py --host 0.0.0.0 --port "$PORT" &
 pids+=("$!")
 
 if kill -0 "$vllm_pid" 2>/dev/null; then

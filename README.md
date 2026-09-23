@@ -8,9 +8,11 @@ This image runs OpenJev's helper (`shim.py`, unmodified) next to vLLM 0.29.0 on 
 vllm serve "$MODEL_NAME" --host 127.0.0.1 --port 8000 --served-model-name qwen --enable-prefix-caching --max-model-len 16384 --gpu-memory-utilization 0.90 --limit-mm-per-prompt '{"image":1}' --trust-remote-code --max-num-seqs 256 --max-logprobs 64 --gdn-prefill-backend triton
 ```
 
-The helper runs as `python3 /app/shim.py --host 0.0.0.0 --port "$PORT"` with SERVE.md's knobs as image defaults: `VLLM=http://127.0.0.1:8000/v1`, `TOKENIZER=openjev/openjev-FP8`, `READOUT_T=0.85`, `READOUT_NOUL_T=1.829074`, `READOUT_NOUL_BIAS=0`, `READOUT_TARGETED=1`, `READOUT_INSTR_STYLE=pyrepr` and `SHIM_STAGGER=1`. Its client libraries are pinned to SERVE.md's versions, openai 3.16.2 and httpx 0.28.1, and the build fails unless the helper's sha256 is `81a22f1b1b8912a465059207ef9f60b7c6c16b4de6372305d867efbe38a1987a`.
+The helper runs as `PYTHONPATH=/app/deps python3 /app/shim.py --host 0.0.0.0 --port "$PORT"` with SERVE.md's knobs as image defaults: `VLLM=http://127.0.0.1:8000/v1`, `TOKENIZER=openjev/openjev-FP8`, `READOUT_T=0.85`, `READOUT_NOUL_T=1.829074`, `READOUT_NOUL_BIAS=0`, `READOUT_TARGETED=1`, `READOUT_INSTR_STYLE=pyrepr` and `SHIM_STAGGER=1`. Its client libraries are pinned to SERVE.md's versions, openai 3.16.2 and httpx 0.28.1, and live in `/app/deps`, which only the helper sees, so vLLM's own copies are untouched. The build fails unless the helper's sha256 is `81a22f1b1b8912a465059207ef9f60b7c6c16b4de6372305d867efbe38a1987a`.
 
 There are two deviations from SERVE.md. The model is the FP8 checkpoint `openjev/openjev-FP8`, so `--quantization fp8` is dropped; SERVE.md instead applies online FP8 quantization to the bfloat16 weights. The helper's tokenizer uses the transformers version that ships in the vLLM 0.29.0 image instead of transformers 5.17.0.
+
+The published image is built with `build.sh`, a registry-side build that uses crane to append one layer (`/app` with the helper, `start.sh`, `NOTICE` and `/app/deps`) to the pinned linux/amd64 vLLM 0.29.0 image, so no Docker daemon is needed. When GitHub Actions is available, the Dockerfile and the workflow produce the same layout.
 
 ## Running it
 
