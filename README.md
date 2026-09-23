@@ -2,7 +2,7 @@
 
 This image runs OpenJev's helper (`shim.py`, unmodified) next to vLLM 0.29.0 on one GPU worker, so the worker answers `POST /v1/systemone` like the reference serving box in the model's SERVE.md. It is built for a RunPod load-balancer endpoint and published as `ghcr.io/brandonbondig/openjev-worker`.
 
-`start.sh` starts the helper, then vLLM, and exits with status 1 as soon as either process stops, so the container restarts instead of half-serving. vLLM runs with SERVE.md's flags:
+`start.sh` starts vLLM, waits until its `/health` returns 200, then starts the helper, and exits with status 1 as soon as either process stops, so the container restarts instead of half-serving. A stop signal is passed on to both processes, and the script waits for them to exit. vLLM runs with SERVE.md's flags:
 
 ```
 vllm serve "$MODEL_NAME" --host 127.0.0.1 --port 8000 --served-model-name qwen --enable-prefix-caching --max-model-len 16384 --gpu-memory-utilization 0.90 --limit-mm-per-prompt '{"image":1}' --trust-remote-code --max-num-seqs 256 --max-logprobs 64 --gdn-prefill-backend triton
@@ -16,7 +16,7 @@ There are two deviations from SERVE.md. The model is the FP8 checkpoint `openjev
 
 Every variable can be overridden at deploy time. `MODEL_NAME` is the Hugging Face model vLLM serves (default `openjev/openjev-FP8`); keep `TOKENIZER` in step with it. `SHIM_TOKEN` is optional: when it is set, every helper route requires `Authorization: Bearer <token>`, and on RunPod it can stay unset because the load balancer authenticates the public ingress. `HF_TOKEN`, if present, is used by both processes for Hugging Face downloads. `PORT` is the helper's port (default 3000). The readout knobs `READOUT_T`, `READOUT_NOUL_T`, `READOUT_NOUL_BIAS`, `READOUT_TARGETED`, `READOUT_INSTR_STYLE` and `SHIM_STAGGER` carry SERVE.md's measured values, and the model card's numbers only hold with them unchanged.
 
-Port 3000 is the helper and the only exposed port. Port 8000 is vLLM, bound to loopback and reachable only from inside the container.
+Port 3000 is the helper and the only exposed port. Port 8000 is vLLM, bound to loopback and reachable only from inside the container. The helper starts only after vLLM reports healthy, so port 3000 stays closed while the model loads, and `GET /v1/version` on port 3000 doubles as the readiness check. With `SHIM_TOKEN` set, that check needs the token as well.
 
 On a machine with an 80 GB or larger GPU:
 
